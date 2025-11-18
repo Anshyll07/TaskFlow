@@ -121,6 +121,92 @@ renderTasks();
 updateStats();
 };
 
+let currentEditingTaskId = null;
+
+const openTaskDetailsModal = (taskId) => {
+const task = store.tasks.find(t => t.id === taskId);
+if (!task) return;
+
+const category = store.categories.find(cat => cat.id === task.categoryId);
+const taskClasses = store.classes.filter(cls => task.classIds && task.classIds.includes(cls.id));
+
+// Populate modal
+document.getElementById("taskDetailsTitle").textContent = task.title;
+document.getElementById("taskDetailsDescription").textContent = task.description || "No description";
+document.getElementById("taskDetailsCategory").textContent = category ? category.name : "Uncategorized";
+document.getElementById("taskDetailsPriority").textContent = task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : "—";
+document.getElementById("taskDetailsDueDate").textContent = task.dueDate ? formatDate(new Date(task.dueDate)) : "—";
+document.getElementById("taskDetailsStatus").textContent = task.completed ? "Completed" : "Active";
+
+// Populate classes
+const classesContainer = document.getElementById("taskDetailsClasses");
+classesContainer.innerHTML = "";
+if (taskClasses.length === 0) {
+classesContainer.innerHTML = "<span style='color: #9ca3af;'>No classes</span>";
+} else {
+taskClasses.forEach(cls => {
+const badge = document.createElement("span");
+badge.className = "task-badge";
+badge.style.backgroundColor = `${cls.color}20`;
+badge.style.color = cls.color;
+badge.textContent = cls.name;
+classesContainer.appendChild(badge);
+});
+}
+
+// Set up edit button
+const editBtn = document.getElementById("editFromDetailsBtn");
+editBtn.onclick = () => {
+document.getElementById("taskDetailsModal").classList.add("hidden");
+openEditModal(taskId);
+};
+
+// Show modal
+document.getElementById("taskDetailsModal").classList.remove("hidden");
+};
+
+const openEditModal = (taskId) => {
+currentEditingTaskId = taskId;
+const task = store.tasks.find(t => t.id === taskId);
+if (!task) return;
+
+// Fill form with task data
+document.getElementById("editTaskTitle").value = task.title;
+document.getElementById("editTaskDescription").value = task.description || "";
+document.getElementById("editTaskCategory").value = task.categoryId || "";
+document.getElementById("editTaskPriority").value = task.priority || "";
+
+// Set due date
+if (task.dueDate) {
+document.getElementById("editSelectedDateDisplay").textContent = formatDate(new Date(task.dueDate));
+} else {
+document.getElementById("editSelectedDateDisplay").textContent = "No due date";
+}
+
+// Set selected classes
+const editClassContainers = document.querySelectorAll("#editTaskClassesContainer .class-badge");
+editClassContainers.forEach(badge => {
+if (task.classIds && task.classIds.includes(badge.dataset.id)) {
+    badge.classList.add("selected");
+    const classObj = store.classes.find(cls => cls.id === badge.dataset.id);
+    if (classObj) {
+        badge.style.backgroundColor = classObj.color;
+        badge.style.color = "white";
+    }
+} else {
+    badge.classList.remove("selected");
+    const classObj = store.classes.find(cls => cls.id === badge.dataset.id);
+    if (classObj) {
+        badge.style.backgroundColor = `${classObj.color}20`;
+        badge.style.color = classObj.color;
+    }
+}
+});
+
+// Show modal
+document.getElementById("editTaskModal").classList.remove("hidden");
+};
+
 const deleteTask = (taskId) => {
 const taskToDelete = store.tasks.find(task => task.id === taskId);
 store.tasks = store.tasks.filter(task => task.id !== taskId);
@@ -261,11 +347,15 @@ showToast("Class deleted", `"${classToDelete.name}" class has been removed`);
 const renderCategories = () => {
 const categoryList = document.getElementById("categoryList");
 const taskCategorySelect = document.getElementById("taskCategory");
+const editTaskCategorySelect = document.getElementById("editTaskCategory");
 
 // Clear existing categories
 categoryList.innerHTML = "";
 if (taskCategorySelect) {
 taskCategorySelect.innerHTML = "";
+}
+if (editTaskCategorySelect) {
+editTaskCategorySelect.innerHTML = "";
 }
 
 // All categories option
@@ -311,6 +401,14 @@ const option = document.createElement("option");
 option.value = category.id;
 option.textContent = category.name;
 taskCategorySelect.appendChild(option);
+}
+
+// Add to edit task form select
+if (editTaskCategorySelect) {
+const option = document.createElement("option");
+option.value = category.id;
+option.textContent = category.name;
+editTaskCategorySelect.appendChild(option);
 }
 });
 
@@ -365,6 +463,8 @@ updateTaskFormClasses();
 
 const updateTaskFormClasses = () => {
 const taskClassesContainer = document.getElementById("taskClassesContainer");
+const editTaskClassesContainer = document.getElementById("editTaskClassesContainer");
+
 if (taskClassesContainer) {
 taskClassesContainer.innerHTML = "";
 
@@ -385,6 +485,29 @@ classBadge.addEventListener("click", () => {
         : classObj.color;
 });
 taskClassesContainer.appendChild(classBadge);
+});
+}
+
+if (editTaskClassesContainer) {
+editTaskClassesContainer.innerHTML = "";
+
+store.classes.forEach(classObj => {
+const classBadge = document.createElement("div");
+classBadge.className = "class-badge";
+classBadge.dataset.id = classObj.id;
+classBadge.style.backgroundColor = `${classObj.color}20`;
+classBadge.style.color = classObj.color;
+classBadge.textContent = classObj.name;
+classBadge.addEventListener("click", () => {
+    classBadge.classList.toggle("selected");
+    classBadge.style.backgroundColor = classBadge.classList.contains("selected")
+        ? classObj.color
+        : `${classObj.color}20`;
+    classBadge.style.color = classBadge.classList.contains("selected")
+        ? "white"
+        : classObj.color;
+});
+editTaskClassesContainer.appendChild(classBadge);
 });
 }
 };
@@ -524,6 +647,9 @@ taskItem.innerHTML = `
 </div>
 
 <div class="task-actions">
+    <button class="icon edit-task" data-id="${task.id}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+    </button>
     
     <button class="icon delete-task" data-id="${task.id}">
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -545,14 +671,14 @@ document.querySelectorAll(".task-title").forEach(title => {
 title.addEventListener("click", () => {
     const taskId = title.getAttribute("data-id");
     setActiveTask(taskId);
+    openTaskDetailsModal(taskId);
 });
 });
 
 document.querySelectorAll(".edit-task").forEach(button => {
 button.addEventListener("click", () => {
     const taskId = button.getAttribute("data-id");
-    // Edit task functionality would go here
-    console.log("Edit task", taskId);
+    openEditModal(taskId);
 });
 });
 
@@ -773,6 +899,108 @@ calendarDays.appendChild(dayElement);
 
 // Initial render
 renderCalendar();
+};
+
+// Setup Edit Date Picker
+const setupEditDatePicker = () => {
+const editDatePickerTrigger = document.getElementById("editDatePickerTrigger");
+const editDatePickerCalendar = document.getElementById("editDatePickerCalendar");
+const editSelectedDateDisplay = document.getElementById("editSelectedDateDisplay");
+const editPrevMonth = document.getElementById("editPrevMonth");
+const editNextMonth = document.getElementById("editNextMonth");
+const editCurrentMonth = document.getElementById("editCurrentMonth");
+const editCalendarDays = document.getElementById("editCalendarDays");
+
+let editSelectedDate = null;
+let editCurrentDate = new Date();
+
+const monthNames = [
+"January", "February", "March", "April", "May", "June",
+"July", "August", "September", "October", "November", "December"
+];
+
+// Toggle calendar
+editDatePickerTrigger.addEventListener("click", () => {
+editDatePickerCalendar.classList.toggle("hidden");
+renderEditCalendar();
+});
+
+// Close calendar when clicking outside
+document.addEventListener("click", (e) => {
+if (!editDatePickerTrigger.contains(e.target) &&
+!editDatePickerCalendar.contains(e.target)) {
+editDatePickerCalendar.classList.add("hidden");
+}
+});
+
+// Navigate months
+editPrevMonth.addEventListener("click", () => {
+editCurrentDate.setMonth(editCurrentDate.getMonth() - 1);
+renderEditCalendar();
+});
+
+editNextMonth.addEventListener("click", () => {
+editCurrentDate.setMonth(editCurrentDate.getMonth() + 1);
+renderEditCalendar();
+});
+
+// Render calendar
+const renderEditCalendar = () => {
+// Update header
+editCurrentMonth.textContent = `${monthNames[editCurrentDate.getMonth()]} ${editCurrentDate.getFullYear()}`;
+
+// Clear days
+editCalendarDays.innerHTML = "";
+
+// Get first day of month and number of days
+const firstDay = new Date(editCurrentDate.getFullYear(), editCurrentDate.getMonth(), 1).getDay();
+const daysInMonth = new Date(editCurrentDate.getFullYear(), editCurrentDate.getMonth() + 1, 0).getDate();
+
+// Add empty cells for days before first day of month
+for (let i = 0; i < firstDay; i++) {
+const emptyDay = document.createElement("div");
+emptyDay.className = "day empty";
+editCalendarDays.appendChild(emptyDay);
+}
+
+// Add days of month
+for (let day = 1; day <= daysInMonth; day++) {
+const dayElement = document.createElement("div");
+dayElement.className = "day";
+dayElement.textContent = day;
+
+const date = new Date(editCurrentDate.getFullYear(), editCurrentDate.getMonth(), day);
+
+// Check if this day is selected
+if (editSelectedDate &&
+    date.getDate() === editSelectedDate.getDate() &&
+    date.getMonth() === editSelectedDate.getMonth() &&
+    date.getFullYear() === editSelectedDate.getFullYear()) {
+    dayElement.classList.add("selected");
+}
+
+// Check if this day is today
+const today = new Date();
+if (date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear()) {
+    dayElement.classList.add("today");
+}
+
+// Add click event
+dayElement.addEventListener("click", () => {
+    editSelectedDate = date;
+    editSelectedDateDisplay.textContent = formatDate(editSelectedDate);
+    editDatePickerCalendar.classList.add("hidden");
+    renderEditCalendar();
+});
+
+editCalendarDays.appendChild(dayElement);
+}
+};
+
+// Initial render
+renderEditCalendar();
 };
 
 // Date formatter
@@ -1147,6 +1375,42 @@ document.getElementById("selectedDateDisplay").textContent = "No due date";
 document.getElementById("newTaskModal").classList.add("hidden");
 });
 
+// Edit Task Form
+const editTaskForm = document.getElementById("editTaskForm");
+editTaskForm.addEventListener("submit", (e) => {
+e.preventDefault();
+
+const title = document.getElementById("editTaskTitle").value;
+const description = document.getElementById("editTaskDescription").value;
+const categoryId = document.getElementById("editTaskCategory").value;
+const priority = document.getElementById("editTaskPriority").value;
+
+// Get selected date
+const editSelectedDateDisplay = document.getElementById("editSelectedDateDisplay");
+const dueDate = editSelectedDateDisplay.textContent === "No due date"
+? null
+: new Date(editSelectedDateDisplay.textContent);
+
+// Get selected classes
+const editSelectedClassBadges = document.querySelectorAll("#editTaskClassesContainer .class-badge.selected");
+const classIds = [...editSelectedClassBadges].map(badge => badge.dataset.id);
+
+updateTask(currentEditingTaskId, {
+title,
+description,
+categoryId,
+dueDate,
+priority: priority || undefined,
+classIds
+});
+
+// Reset form
+editTaskForm.reset();
+document.getElementById("editSelectedDateDisplay").textContent = "No due date";
+document.getElementById("editTaskModal").classList.add("hidden");
+showToast("Task updated", "Your changes have been saved");
+});
+
 // New Category Form
 const newCategoryForm = document.getElementById("newCategoryForm");
 newCategoryForm.addEventListener("submit", (e) => {
@@ -1249,6 +1513,7 @@ renderClasses();
 renderTasks();
 updateStats();
 setupDatePicker();
+setupEditDatePicker();
 setupModals();
 setupTabs();
 setupDropdowns();
